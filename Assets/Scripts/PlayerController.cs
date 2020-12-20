@@ -10,6 +10,7 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private int verticalRayAmount = 4;
 
     private BoxCollider2D _boxCollider2D;
+    private PlayerConditions _conditions;
 
     private Vector2 _boundsBottomLeft;
     private Vector2 _boundsBottomRight;
@@ -27,6 +28,9 @@ public class PlayerController : MonoBehaviour
     void Start()
     {
         _boxCollider2D = GetComponent<BoxCollider2D>();
+
+        _conditions = new PlayerConditions();
+        _conditions.Reset();
     }
 
     void Update()
@@ -34,17 +38,32 @@ public class PlayerController : MonoBehaviour
         ApplyGravity();
         StartMovement();
 
-        SetRayOrigins();
+        SetRaycastBounds();
         CollisionBelow();
 
         transform.Translate(_nextPosition, Space.Self);
 
-        SetRayOrigins();
+        SetRaycastBounds();
         CalculateMovement();
     }
 
     private void CollisionBelow()
     {
+        if (_nextPosition.y < 0)
+        {
+            _conditions.IsFalling = true;
+        }
+        else
+        {
+            _conditions.IsFalling = false;
+        }
+
+        if (!_conditions.IsFalling)
+        {
+            _conditions.IsCollidingBelow = false;
+            return;
+        }
+
         // Calculate ray length
         float rayLength = _boundsHeight / 2f + _spriteBuffer;
 
@@ -67,14 +86,20 @@ public class PlayerController : MonoBehaviour
             RaycastHit2D hit = Physics2D.Raycast(rayOrigin, -transform.up, rayLength, collideWith);
             Debug.DrawRay(rayOrigin, -transform.up * rayLength, Color.green);
 
-            if (hit)
+            if (hit) // Raycast was succesful
             {
                 _nextPosition.y = -hit.distance + _boundsHeight / 2f + _spriteBuffer;
+
+                _conditions.IsCollidingBelow = true;
 
                 if (Mathf.Abs(_nextPosition.y) < 0.0001f)
                 {
                     _nextPosition.y = 0f;
                 }
+            }
+            else
+            {
+                _conditions.IsCollidingBelow = false;
             }
         }
     }
@@ -86,7 +111,7 @@ public class PlayerController : MonoBehaviour
     {
         if (Time.deltaTime > 0)
         {
-            _force = _nextPosition / Time.deltaTime; // Make sure the applied force is always relative to our next mo
+            _force = _nextPosition / Time.deltaTime; // Make sure the applied force is always relative to our next position
         }
     }
 
@@ -96,6 +121,12 @@ public class PlayerController : MonoBehaviour
     private void StartMovement()
     {
         _nextPosition = _force * Time.deltaTime;
+        _conditions.Reset(); // Reset player conditions at the beginning of each tick
+    }
+
+    public void SetHorizontalForce(float xForce)
+    {
+        _force.x = xForce;
     }
 
     /// <summary>
@@ -110,7 +141,7 @@ public class PlayerController : MonoBehaviour
     /// <summary>
     /// Calculate ray origins based on the box collider
     /// </summary>
-    private void SetRayOrigins()
+    private void SetRaycastBounds()
     {
         Bounds playerBounds = _boxCollider2D.bounds;
 
